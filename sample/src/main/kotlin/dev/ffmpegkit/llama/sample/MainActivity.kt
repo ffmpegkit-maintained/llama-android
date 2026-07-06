@@ -39,37 +39,35 @@ class MainActivity : AppCompatActivity() {
 
     private fun runChat() {
         val modelFile = File(getExternalFilesDir("models"), "model.gguf")
+        Log.i("LlamaSelfTest", "runChat start: path=${modelFile.absolutePath} " +
+            "exists=${modelFile.exists()} size=${modelFile.length()}")
         if (!modelFile.exists()) {
             output.text = "No model. Push one to:\n${modelFile.absolutePath}"
-            Log.i("LlamaSelfTest", "no model at ${modelFile.absolutePath}")
             return
         }
         lifecycleScope.launch {
             try {
-                output.text = "Loading model…"
+                Log.i("LlamaSelfTest", "loading model…")
                 val model = Llama.loadModel(
                     modelFile.absolutePath,
-                    LlamaConfig(contextSize = 2048, threads = 4),
+                    LlamaConfig(contextSize = 512, threads = 4),
                 )
-                output.text = "Generating…"
+                Log.i("LlamaSelfTest", "model loaded; generating…")
                 val result = Llama.complete(
                     model,
                     prompt = "Reply with exactly: Hello from llama.",
                     systemPrompt = "You are concise.",
-                    maxTokens = 16,   // small — debug native (-O0) LLM gen is slow
+                    maxTokens = 16,
                 )
                 Llama.releaseModel(model)
-                output.text = buildString {
-                    append(result.text.trim()).append("\n\n")
-                    append("${result.tokensGenerated} tokens · ")
-                    append("%.1f tok/s".format(result.tokensPerSecond))
-                }
                 Log.i("LlamaSelfTest",
                     "text='${result.text.trim()}' tokens=${result.tokensGenerated} " +
                         "tps=${result.tokensPerSecond} PASS=${result.text.isNotBlank()}")
-            } catch (e: Exception) {
-                output.text = "Error: ${e.message}"
+                output.text = "${result.text.trim()}\n\n${result.tokensGenerated} tok · " +
+                    "%.1f tok/s".format(result.tokensPerSecond)
+            } catch (e: Throwable) {
                 Log.e("LlamaSelfTest", "chat failed", e)
+                output.text = "Error: ${e.message}"
             }
         }
     }

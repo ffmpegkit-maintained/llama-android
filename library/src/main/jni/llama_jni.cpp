@@ -155,6 +155,10 @@ Java_dev_ffmpegkit_llama_LlamaJNI_nativeComplete(
     const llama_vocab *vocab = llama_model_get_vocab(h->model);
     const std::string text = build_prompt(h->model, jstr(env, system), jstr(env, prompt));
 
+    // Each complete() is a fresh single turn: reset the KV cache so successive calls
+    // on the same model don't bleed context into one another.
+    llama_memory_clear(llama_get_memory(h->ctx), true);
+
     std::vector<llama_token> tokens = tokenize(vocab, text, true);
     const int n_prompt = (int) tokens.size();
 
@@ -203,13 +207,25 @@ Java_dev_ffmpegkit_llama_LlamaJNI_nativeEmbed(
 
     const llama_vocab *vocab = llama_model_get_vocab(h->model);
     std::vector<llama_token> tokens = tokenize(vocab, jstr(env, text), true);
+    const int n_tok = (int) tokens.size();
+
+    // Embeddings must be explicitly enabled or llama_get_embeddings_* returns null.
+    // Toggle it on for this call and restore generation mode afterwards.
+    llama_set_embeddings(h->ctx, true);
     llama_memory_clear(llama_get_memory(h->ctx), true);
-    llama_batch batch = llama_batch_get_one(tokens.data(), (int32_t) tokens.size());
-    if (llama_decode(h->ctx, batch) != 0) return env->NewFloatArray(0);
+    llama_batch batch = llama_batch_get_one(tokens.data(), (int32_t) n_tok);
+    if (llama_decode(h->ctx, batch) != 0) {
+        llama_set_embeddings(h->ctx, false);
+        return env->NewFloatArray(0);
+    }
 
     const int n_embd = llama_model_n_embd(h->model);
+    // Pooled sequence embedding (embedding models); fall back to the last token's
+    // hidden state (plain LLMs with no pooling configured).
     const float *emb = llama_get_embeddings_seq(h->ctx, 0);
+    if (!emb) emb = llama_get_embeddings_ith(h->ctx, n_tok - 1);
     if (!emb) emb = llama_get_embeddings(h->ctx);
+    llama_set_embeddings(h->ctx, false);
     if (!emb) return env->NewFloatArray(0);
 
     jfloatArray arr = env->NewFloatArray(n_embd);

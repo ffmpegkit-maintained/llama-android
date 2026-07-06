@@ -18,7 +18,7 @@ Python. Wraps llama.cpp build `b9878`.
 
 ```kotlin
 dependencies {
-    implementation("dev.ffmpegkit-maintained:llama-android:0.1.0")
+    implementation("dev.ffmpegkit-maintained:llama-android:0.1.1")
 }
 ```
 
@@ -31,7 +31,7 @@ dependencyResolutionManagement {
 }
 // build.gradle.kts
 dependencies {
-    implementation("com.github.ffmpegkit-maintained:llama-android:v0.1.0")
+    implementation("com.github.ffmpegkit-maintained:llama-android:v0.1.1")
 }
 ```
 

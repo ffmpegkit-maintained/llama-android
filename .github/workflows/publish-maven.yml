@@ -1,0 +1,53 @@
+name: Publish to Maven Central
+
+# Manual only. Builds the release AAR, verifies the native lib is present, then
+# publishes llama-android to Maven Central. Publish ONLY after Luc validates —
+# Maven Central is irreversible.
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Git tag to publish (e.g. v0.1.0)"
+        required: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          ref: ${{ github.event.inputs.release_tag }}
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install NDK r27c + CMake + Ninja
+        run: |
+          sdkmanager "ndk;27.2.12479018" "cmake;3.22.1"
+          sudo apt-get update && sudo apt-get install -y ninja-build
+
+      # Safety: build + install locally and verify the AAR carries the real native
+      # lib BEFORE the irreversible Central publish.
+      - name: Verify AAR then publish to Maven Central
+        env:
+          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.OSSRH_USERNAME }}
+          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.OSSRH_PASSWORD }}
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.GPG_PRIVATE_KEY }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          set -e
+          chmod +x ./gradlew
+          ./gradlew :library:publishToMavenLocal --no-configuration-cache --stacktrace
+          AAR=$(find ~/.m2/repository/dev/ffmpegkit-maintained/llama-android -name "*.aar" | head -1)
+          echo "Local AAR: $AAR ($(du -h "$AAR" | cut -f1))"
+          if ! unzip -l "$AAR" | grep -qE "jni/.*/libllama_jni.so"; then
+            echo "::error::AAR has no libllama_jni.so — empty build, aborting Central publish"; exit 1
+          fi
+          echo "✓ AAR contains the native lib — publishing to Maven Central (irreversible)"
+          ./gradlew :library:publishToMavenCentral --no-configuration-cache --stacktrace

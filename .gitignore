@@ -1,0 +1,24 @@
+# Gradle / Android
+.gradle/
+build/
+local.properties
+.idea/
+*.iml
+captures/
+
+# NDK / native build
+.cxx/
+.externalNativeBuild/
+
+# Prebuilt binaries — rebuildable, never commit
+*.so
+*.a
+*.aar
+
+# GGUF / model files — 400 MB–8 GB, never commit (the dev downloads them)
+*.gguf
+*.bin
+
+# OS
+.DS_Store
+Thumbs.db

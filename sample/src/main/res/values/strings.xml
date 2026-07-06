@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">llama.cpp Sample</string>
+    <string name="run_chat">Load model &amp; run chat</string>
+</resources>

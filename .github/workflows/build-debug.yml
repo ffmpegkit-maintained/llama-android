@@ -1,0 +1,47 @@
+name: Build (debug)
+
+# CI sanity build on every push/PR. Compiles llama.cpp + ggml + JNI for
+# arm64-v8a and assembles the debug AAR + sample APK. Does NOT publish.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install NDK r27c + CMake + Ninja
+        run: |
+          sdkmanager "ndk;27.2.12479018" "cmake;3.22.1"
+          sudo apt-get update && sudo apt-get install -y ninja-build
+
+      - name: Assemble library + sample (debug)
+        run: |
+          chmod +x ./gradlew
+          ./gradlew :library:assembleDebug :sample:assembleDebug --stacktrace
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: llama-android-debug-aar
+          path: library/build/outputs/aar/*.aar
+          retention-days: 5
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: llama-sample-debug-apk
+          path: sample/build/outputs/apk/debug/*.apk
+          retention-days: 5

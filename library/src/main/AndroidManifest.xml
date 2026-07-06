@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Library: namespace in build.gradle.kts. No permissions needed for LLM
+         inference; model files are the host app's responsibility. -->
+</manifest>

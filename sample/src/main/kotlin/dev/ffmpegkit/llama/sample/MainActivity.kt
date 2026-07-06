@@ -32,6 +32,9 @@ class MainActivity : AppCompatActivity() {
         Log.i("LlamaSelfTest", "sysinfo=${Llama.getSystemInfo()}")
 
         findViewById<Button>(R.id.runButton).setOnClickListener { runChat() }
+
+        // Auto-run the smoke test on launch (read via `adb logcat -s LlamaSelfTest`).
+        runChat()
     }
 
     private fun runChat() {

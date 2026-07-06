@@ -54,9 +54,9 @@ class MainActivity : AppCompatActivity() {
                 output.text = "Generating…"
                 val result = Llama.complete(
                     model,
-                    prompt = "In one short sentence, what is a large language model?",
-                    systemPrompt = "You are a concise, helpful assistant.",
-                    maxTokens = 128,
+                    prompt = "Reply with exactly: Hello from llama.",
+                    systemPrompt = "You are concise.",
+                    maxTokens = 16,   // small — debug native (-O0) LLM gen is slow
                 )
                 Llama.releaseModel(model)
                 output.text = buildString {

@@ -1,5 +1,6 @@
 // JNI bridge between the Kotlin API (dev.ffmpegkit.llama.LlamaJNI) and llama.cpp.
-// Produces libllama_jni.so; Kotlin loads ggml, llama, then llama_jni.
+// Uses the core llama.h API only (no examples "common" lib). Produces
+// libllama_jni.so; Kotlin loads ggml, llama, then llama_jni.
 //
 // Native entry points (must match LlamaJNI.kt):
 //   nativeLoadModel(path, nCtx, nThreads, nGpuLayers)                 -> jlong handle
@@ -12,15 +13,11 @@
 #include <android/log.h>
 #include <string>
 #include <vector>
-#include <cmath>
 
 #include "llama.h"
-#include "common.h"
-#include "sampling.h"
 
 #define LOG_TAG "llama-jni"
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
-#define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
 
 namespace {
 
@@ -56,6 +53,24 @@ std::string json_escape(const std::string &in) {
     return o;
 }
 
+std::vector<llama_token> tokenize(const llama_vocab *vocab, const std::string &text,
+                                  bool add_special) {
+    int n = -llama_tokenize(vocab, text.c_str(), (int32_t) text.size(),
+                            nullptr, 0, add_special, true);
+    std::vector<llama_token> tokens(n);
+    int check = llama_tokenize(vocab, text.c_str(), (int32_t) text.size(),
+                               tokens.data(), (int32_t) tokens.size(), add_special, true);
+    if (check < 0) tokens.clear();
+    return tokens;
+}
+
+std::string token_to_piece(const llama_vocab *vocab, llama_token token) {
+    char buf[256];
+    int n = llama_token_to_piece(vocab, token, buf, sizeof(buf), 0, true);
+    if (n < 0) return {};
+    return std::string(buf, n);
+}
+
 // Format the (system,user) turn with the model's built-in chat template, falling
 // back to a plain concatenation if the model has none.
 std::string build_prompt(const llama_model *model, const std::string &system,
@@ -77,6 +92,20 @@ std::string build_prompt(const llama_model *model, const std::string &system,
     }
     if (n < 0) return system.empty() ? user : (system + "\n\n" + user);
     return std::string(buf.data(), n);
+}
+
+llama_sampler *make_sampler(float temp, float topP, int topK, int seed) {
+    llama_sampler *smpl = llama_sampler_chain_init(llama_sampler_chain_default_params());
+    if (temp <= 0.0f) {
+        llama_sampler_chain_add(smpl, llama_sampler_init_greedy());
+    } else {
+        llama_sampler_chain_add(smpl, llama_sampler_init_top_k(topK));
+        llama_sampler_chain_add(smpl, llama_sampler_init_top_p(topP, 1));
+        llama_sampler_chain_add(smpl, llama_sampler_init_temp(temp));
+        llama_sampler_chain_add(smpl, llama_sampler_init_dist(
+                seed < 0 ? LLAMA_DEFAULT_SEED : (uint32_t) seed));
+    }
+    return smpl;
 }
 
 } // namespace
@@ -126,41 +155,35 @@ Java_dev_ffmpegkit_llama_LlamaJNI_nativeComplete(
     const llama_vocab *vocab = llama_model_get_vocab(h->model);
     const std::string text = build_prompt(h->model, jstr(env, system), jstr(env, prompt));
 
-    std::vector<llama_token> tokens = common_tokenize(h->ctx, text, true, true);
+    std::vector<llama_token> tokens = tokenize(vocab, text, true);
     const int n_prompt = (int) tokens.size();
 
-    // Sampler: temperature / top-k / top-p (greedy when temp <= 0).
-    common_params_sampling sp;
-    sp.temp = temp;
-    sp.top_p = topP;
-    sp.top_k = topK;
-    sp.seed = (seed < 0) ? LLAMA_DEFAULT_SEED : (uint32_t) seed;
-    common_sampler *smpl = common_sampler_init(h->model, sp);
+    llama_sampler *smpl = make_sampler(temp, topP, topK, seed);
 
-    const int64_t t_prompt0 = ggml_time_ms();
+    const int64_t t0 = llama_time_us();
     llama_batch batch = llama_batch_get_one(tokens.data(), (int32_t) tokens.size());
     if (llama_decode(h->ctx, batch) != 0) {
-        common_sampler_free(smpl);
+        llama_sampler_free(smpl);
         return env->NewStringUTF("{\"text\":\"\",\"error\":\"decode failed\"}");
     }
-    const int64_t t_prompt1 = ggml_time_ms();
+    const int64_t t1 = llama_time_us();
 
     std::string out;
     int n_gen = 0;
     for (; n_gen < maxTokens; n_gen++) {
-        llama_token id = common_sampler_sample(smpl, h->ctx, -1);
+        llama_token id = llama_sampler_sample(smpl, h->ctx, -1);
         if (llama_vocab_is_eog(vocab, id)) break;
-        common_sampler_accept(smpl, id, true);
-        out += common_token_to_piece(h->ctx, id);
+        llama_sampler_accept(smpl, id);
+        out += token_to_piece(vocab, id);
         llama_batch nb = llama_batch_get_one(&id, 1);
         if (llama_decode(h->ctx, nb) != 0) break;
     }
-    const int64_t t_gen1 = ggml_time_ms();
+    const int64_t t2 = llama_time_us();
 
-    common_sampler_free(smpl);
+    llama_sampler_free(smpl);
 
-    const long prompt_ms = (long) (t_prompt1 - t_prompt0);
-    const long gen_ms = (long) (t_gen1 - t_prompt1);
+    const long prompt_ms = (long) ((t1 - t0) / 1000);
+    const long gen_ms = (long) ((t2 - t1) / 1000);
     const float tps = gen_ms > 0 ? (n_gen * 1000.0f / gen_ms) : 0.0f;
 
     std::string json = "{\"text\":\"" + json_escape(out) +
@@ -178,7 +201,8 @@ Java_dev_ffmpegkit_llama_LlamaJNI_nativeEmbed(
     auto *h = reinterpret_cast<LlamaCtx *>(handle);
     if (!h || !h->ctx) return env->NewFloatArray(0);
 
-    std::vector<llama_token> tokens = common_tokenize(h->ctx, jstr(env, text), true, true);
+    const llama_vocab *vocab = llama_model_get_vocab(h->model);
+    std::vector<llama_token> tokens = tokenize(vocab, jstr(env, text), true);
     llama_memory_clear(llama_get_memory(h->ctx), true);
     llama_batch batch = llama_batch_get_one(tokens.data(), (int32_t) tokens.size());
     if (llama_decode(h->ctx, batch) != 0) return env->NewFloatArray(0);

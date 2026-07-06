@@ -24,7 +24,7 @@ set(LLAMA_BUILD_TESTS    OFF CACHE BOOL "" FORCE)
 set(LLAMA_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(LLAMA_BUILD_SERVER   OFF CACHE BOOL "" FORCE)
 set(LLAMA_BUILD_TOOLS    OFF CACHE BOOL "" FORCE)
-set(LLAMA_BUILD_COMMON   ON  CACHE BOOL "" FORCE)   # helpers: sampling, chat templates
+set(LLAMA_BUILD_COMMON   OFF CACHE BOOL "" FORCE)   # JNI uses the core llama.h API only
 add_subdirectory(${LLAMA_DIR} ${CMAKE_CURRENT_BINARY_DIR}/llama.cpp)
 
 # --- JNI bridge → libllama_jni.so ------------------------------------------
@@ -33,10 +33,8 @@ find_library(log-lib log)
 
 target_include_directories(llama_jni PRIVATE
     ${LLAMA_DIR}/include
-    ${LLAMA_DIR}/ggml/include
-    ${LLAMA_DIR}/common)
+    ${LLAMA_DIR}/ggml/include)
 
 target_link_libraries(llama_jni
     llama
-    common
     ${log-lib})

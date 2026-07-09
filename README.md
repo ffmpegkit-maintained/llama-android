@@ -102,9 +102,15 @@ Rule of thumb: a Q4_K_M model needs roughly *(model size + ~20%)* of free RAM. O
 | Multiple concurrent sessions (per-session KV cache) | ✗ | ✅ |
 | Vulkan GPU acceleration | ✗ (CPU/NEON) | ✅ |
 | ABI | arm64-v8a | arm64-v8a + x86_64 |
-| Channel | Maven Central + JitPack + Release | Gumroad |
+| Channel | Maven Central + JitPack + Release | Jokobee |
 
-**→ [Get llama.cpp Pro](https://www.jokobee.com)** — Vulkan GPU, streaming, multi-session.
+**Pro adds:**
+- Streaming tokens (Kotlin Flow) — render responses word by word
+- Multiple concurrent sessions with per-session KV cache
+- Vulkan GPU acceleration (in addition to CPU/NEON)
+- x86_64 ABI, in addition to arm64-v8a
+
+**→ [Get llama.cpp Pro on jokobee.com](https://www.jokobee.com/llama)**
 
 ## Works with Whisper — voice AI, fully on-device
 

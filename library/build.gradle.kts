@@ -71,7 +71,7 @@ mavenPublishing {
 
     pom {
         name = "llama-android"
-        description = "Prebuilt llama.cpp AAR for Android — on-device LLM inference (chat, completion, embeddings), no NDK, no cloud, no API key. GGUF models, arm64-v8a, API 24+."
+        description = "Llama.cpp for Android — prebuilt AAR for on-device LLM inference: chat, text completion, embeddings. GGUF models, no NDK, no cloud, no API key. arm64-v8a, API 24+. jokobee.com"
         inceptionYear = "2026"
         url = "https://github.com/ffmpegkit-maintained/llama-android"
         licenses {

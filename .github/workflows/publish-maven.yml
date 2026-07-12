@@ -9,6 +9,10 @@ on:
       release_tag:
         description: "Git tag to publish (e.g. v0.1.0)"
         required: true
+      alias_only:
+        description: "Publish ONLY the alias-llama-cpp discoverability alias (skip :library, already published at this version)"
+        required: false
+        default: "false"
 
 jobs:
   publish:
@@ -43,6 +47,11 @@ jobs:
         run: |
           set -e
           chmod +x ./gradlew
+          if [ "${{ github.event.inputs.alias_only }}" = "true" ]; then
+            echo "alias_only mode: publishing ONLY alias-llama-cpp, skipping :library (already published at this version)."
+            ./gradlew :alias-llama-cpp:publishToMavenCentral --no-configuration-cache --stacktrace
+            exit 0
+          fi
           ./gradlew :library:publishToMavenLocal --no-configuration-cache --stacktrace
           AAR=$(find ~/.m2/repository/dev/ffmpegkit-maintained/llama-android -name "*.aar" | head -1)
           echo "Local AAR: $AAR ($(du -h "$AAR" | cut -f1))"
@@ -51,3 +60,4 @@ jobs:
           fi
           echo "✓ AAR contains the native lib — publishing to Maven Central (irreversible)"
           ./gradlew :library:publishToMavenCentral --no-configuration-cache --stacktrace
+          ./gradlew :alias-llama-cpp:publishToMavenCentral --no-configuration-cache --stacktrace

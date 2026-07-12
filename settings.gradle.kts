@@ -11,3 +11,4 @@ dependencyResolutionManagement {
 rootProject.name = "llama-android"
 include(":library")
 include(":sample")
+include(":alias-llama-cpp")
